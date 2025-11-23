@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Script Hub</title>
+<!-- CSS -->
+<style>
+body { font-family: Arial, sans-serif; margin:0; padding:0; }
+header { background:#0D47A1; color:white; padding:10px; display:flex; justify-content:space-between; align-items:center;}
+header h1 { margin:0; font-size:1.5em;}
+nav { width:200px; background:#1976D2; color:white; height:100vh; float:left; padding-top:20px; box-sizing:border-box;}
+nav ul { list-style:none; padding:0;}
+nav li { padding:15px; cursor:pointer;}
+nav li:hover, nav li.active { background:#0D47A1;}
+main { margin-left:200px; padding:20px;}
+.script-card { border:1px solid #ccc; padding:10px; margin-bottom:10px; border-radius:5px; }
+button { padding:5px 10px; margin-top:5px; cursor:pointer;}
+.hidden { display:none;}
+.builder-node { border:1px dashed #0D47A1; padding:10px; margin:5px; border-radius:5px; cursor:grab; background:#E3F2FD;}
+#adminPanel { background:#f1f1f1; padding:10px; margin-top:10px;}
+input, select, textarea { width:100%; margin:5px 0; padding:5px; box-sizing:border-box;}
+#builderCanvas { display:flex; flex-wrap:wrap; min-height:300px; border:1px solid #ccc; padding:10px; border-radius:5px;}
+@media(max-width:768px){ nav{width:100%; height:auto; float:none;} main{margin-left:0;} }
+</style>
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.16.0/Sortable.min.js"></script>
+</head>
+<body>
+
+<header>
+<h1>Script Hub</h1>
+</header>
+
+<nav>
+<ul>
+<li id="menuCall" class="active">Call Scripts</li>
+<li id="menuCounter">Counter Scripts</li>
+<li id="menuBuilder">Conversation Builder</li>
+<li id="menuAdmin">Admin Panel</li>
+</ul>
+</nav>
+
+<main>
+<!-- Call Scripts -->
+<div id="callScripts">
+<h2>Call Scripts</h2>
+<div id="callList"></div>
+<button onclick="exportCallPDF()">Export PDF</button>
+<button onclick="copyCallText()">Copy Text</button>
+</div>
+
+<!-- Counter Scripts -->
+<div id="counterScripts" class="hidden">
+<h2>Counter Scripts</h2>
+<div id="counterList"></div>
+<button onclick="exportCounterPDF()">Export PDF</button>
+<button onclick="copyCounterText()">Copy Text</button>
+</div>
+
+<!-- Conversation Builder -->
+<div id="builderScripts" class="hidden">
+<h2>Conversation Builder</h2>
+<div id="builderCanvas"></div>
+<button onclick="exportBuilderPDF()">Export PDF</button>
+<button onclick="copyBuilderText()">Copy Text</button>
+</div>
+
+<!-- Admin Panel -->
+<div id="adminPanel" class="hidden">
+<h2>Admin Panel</h2>
+<h3>เพิ่ม / แก้ไข Call Script</h3>
+<input id="adminCallId" placeholder="Script ID">
+<input id="adminCallTitle" placeholder="Title">
+<textarea id="adminCallObjective" placeholder="Objective"></textarea>
+<textarea id="adminCallOpener" placeholder="Opener"></textarea>
+<textarea id="adminCallPain" placeholder="Pain"></textarea>
+<textarea id="adminCallUrgency" placeholder="Urgency"></textarea>
+<textarea id="adminCallObjectionQ" placeholder="Objection Question"></textarea>
+<textarea id="adminCallObjectionA" placeholder="Objection Answer"></textarea>
+<button onclick="addCallScript()">Save Call Script</button>
+
+<h3>เพิ่ม / แก้ไข Counter Script</h3>
+<input id="adminCounterId" placeholder="Script ID">
+<input id="adminCounterTitle" placeholder="Title">
+<textarea id="adminCounterStep1" placeholder="Step 1"></textarea>
+<textarea id="adminCounterStep2" placeholder="Step 2"></textarea>
+<textarea id="adminCounterObjectionQ" placeholder="Objection Question"></textarea>
+<textarea id="adminCounterObjectionA" placeholder="Objection Answer"></textarea>
+<button onclick="addCounterScript()">Save Counter Script</button>
+</div>
+</main>
+
+<script>
+const { jsPDF } = window.jspdf;
+
+// Sample Data
+let callScripts = [
+{scriptId:"call_001", title:"เงินนิ่งในบัญชี", structure:{OBJECTIVE:"แนะนำบัญชีดอกเบี้ยพิเศษ", OPENER:"อัตราดอกเบี้ยต่ำ", PAIN:"เสียโอกาสดอกเบี้ย 24,000/ปี", URGENCY:"โปรโมชันถึงสิ้นเดือน"}, objections:[{question:"ไม่สะดวกไปสาขาเลยครับ", answer:"ผมไปพบคุณได้ 15 นาที"}]},
+{scriptId:"call_002", title:"เงินฝากประจำใกล้ครบ", structure:{OBJECTIVE:"แจ้งบัญชีใกล้ครบ", OPENER:"ดอกเบี้ยน้อย", PAIN:"เสียโอกาสรอ 12 เดือน", URGENCY:"เลือกโปรดักใหม่ตามความเสี่ยง"}, objections:[{question:"ยุ่งมาก ไม่มีเวลา", answer:"ใช้เวลาเพียง 10 นาที"}]},
+{scriptId:"call_003", title:"กองทุนติดลบ", structure:{OBJECTIVE:"ชวนปรับพอร์ตลงทุน", OPENER:"กองทุนผันผวน", PAIN:"เสียโอกาสผลตอบแทน", URGENCY:"ปรับพอร์ตเร็วที่สุด"}, objections:[{question:"กลัวความเสี่ยง", answer:"ปรับตามระดับความเสี่ยงของคุณ"}]},
+{scriptId:"call_004", title:"ประกันครบเบี้ย", structure:{OBJECTIVE:"ทบทวนประกัน", OPENER:"ใกล้ครบเบี้ย", PAIN:"เสียสิทธิ์ลดหย่อนภาษี", URGENCY:"ต่อเร็วได้เบี้ยถูก"}, objections:[{question:"ไม่อยากคิดเรื่องประกันตอนนี้", answer:"ใช้เวลาแค่ 5 นาที"}]},
+{scriptId:"call_005", title:"Tax Season", structure:{OBJECTIVE:"วางแผนภาษี", OPENER:"ใกล้สิ้นปี", PAIN:"เสียสิทธิ์ลดหย่อน", URGENCY:"รีบก่อนสิ้นปี"}, objections:[{question:"ไม่มีเวลามา", answer:"สามารถคำนวณออนไลน์ได้"}]}
+];
+
+let counterScripts = [
+{scriptId:"counter_001", title:"อัพเดทที่อยู่ล่าสุด", step1:"ขออัพเดทที่อยู่เพื่อไม่ให้เอกสารสำคัญตกหล่น", step2:"อัปเดตเรียบร้อย", objections:[{question:"ไม่ว่างตอนนี้", answer:"ใช้เวลาเพียง 5 นาที"}]},
+{scriptId:"counter_002", title:"คนละครึ่งพลัส", step1:"ชวนสนทนาเรื่องคนละครึ่งพลัส", step2:"ลงไม่ทันอดสิทธิ"},
+{scriptId:"counter_003", title:"Easy e-Receipt / Tax Season", step1:"ชวนคุยเตรียมเอกสาร Tax Season", step2:"เชื่อมโยงสิทธิลดหย่อนอื่นๆ"},
+{scriptId:"counter_004", title:"ภาษีดอกเบี้ยเงินฝาก", step1:"ชวนคุยเรื่องภาษีดอกเบี้ย", step2:"ช่วยคำนวณคืนภาษี"},
+{scriptId:"counter_005", title:"สิ้นปีเตรียมวางแผนภาษี", step1:"เตือนลูกค้า Tax Season", step2:"วางแผนให้ทันปีนี้"}
+];
+
+let builderNodes = [
+{nodeId:"node_001", text:"เริ่มสนทนา", options:[
+{text:"ถามบัญชีเงินฝาก", nextNodeId:"call_001"},
+{text:"ถามประกัน", nextNodeId:"call_004"},
+{text:"ถาม Tax Season", nextNodeId:"call_005"},
+{text:"อัพเดทที่อยู่ล่าสุด", nextNodeId:"counter_001"},
+{text:"ถามคนละครึ่งพลัส", nextNodeId:"counter_002"},
+{text:"ถาม Easy e-Receipt", nextNodeId:"counter_003"},
+{text:"ถามภาษีดอกเบี้ย", nextNodeId:"counter_004"},
+{text:"ถามวางแผนภาษีสิ้นปี", nextNodeId:"counter_005"}
+]}
+];
+
+// Render Functions
+function renderCallScripts(){
+let container=document.getElementById("callList"); container.innerHTML="";
+callScripts.forEach(c=>{
+let div=document.createElement("div"); div.className="script-card";
+div.innerHTML=`<b>${c.title}</b>
+<p><b>OBJECTIVE:</b> ${c.structure.OBJECTIVE}</p>
+<p><b>OPENER:</b> ${c.structure.OPENER}</p>
+<p><b>PAIN:</b> ${c.structure.PAIN}</p>
+<p><b>URGENCY:</b> ${c.structure.URGENCY}</p>
+<p><b>Objection:</b> ${c.objections.map(o=>o.question+": "+o.answer).join("<br>")}</p>`;
+container.appendChild(div);
+});
+}
+
+function renderCounterScripts(){
+let container=document.getElementById("counterList"); container.innerHTML="";
+counterScripts.forEach(c=>{
+let div=document.createElement("div"); div.className="script-card";
+div.innerHTML=`<b>${c.title}</b>
+<p><b>Step1:</b> ${c.step1}</p>
+<p><b>Step2:</b> ${c.step2}</p>
+${c.objections?'<p><b>Objection:</b> '+c.objections.map(o=>o.question+": "+o.answer).join("<br>")+'</p>':''}`;
+container.appendChild(div);
+});
+}
+
+function renderBuilder(){
+let container=document.getElementById("builderCanvas"); container.innerHTML="";
+builderNodes.forEach(n=>{
+let div=document.createElement("div"); div.className="builder-node";
+div.innerHTML=`<b>${n.nodeId}</b>: ${n.text}<ul>${n.options.map(o=>"<li>"+o.text+" → "+o.nextNodeId+"</li>").join("")}</ul>`;
+container.appendChild(div);
+});
+Sortable.create(container,{animation:150});
+}
+
+// Admin Functions
+function addCallScript(){
+let newScript={scriptId:document.getElementById("adminCallId").value,
+title:document.getElementById("adminCallTitle").value,
+structure:{OBJECTIVE:document.getElementById("adminCallObjective").value,
+OPENER:document.getElementById("adminCallOpener").value,
+PAIN:document.getElementById("adminCallPain").value,
+URGENCY:document.getElementById("adminCallUrgency").value},
+objections:[{question:document.getElementById("adminCallObjectionQ").value,
+answer:document.getElementById("adminCallObjectionA").value}]};
+callScripts.push(newScript); renderCallScripts(); alert("Saved Call Script!");
+}
+
+function addCounterScript(){
+let newScript={scriptId:document.getElementById("adminCounterId").value,
+title:document.getElementById("adminCounterTitle").value,
+step1:document.getElementById("adminCounterStep1").value,
+step2:document.getElementById("adminCounterStep2").value,
+objections:[{question:document.getElementById("adminCounterObjectionQ").value,
+answer:document.getElementById("adminCounterObjectionA").value}]};
+counterScripts.push(newScript); renderCounterScripts(); alert("Saved Counter Script!");
+}
+
+// Menu Navigation
+document.getElementById("menuCall").addEventListener("click",()=>{showMenu("call")});
+document.getElementById("menuCounter").addEventListener("click",()=>{showMenu("counter")});
+document.getElementById("menuBuilder").addEventListener("click",()=>{showMenu("builder")});
+document.getElementById("menuAdmin").addEventListener("click",()=>{showMenu("admin")});
+function showMenu(menu){
+document.getElementById("callScripts").classList.add("hidden");
+document.getElementById("counterScripts").classList.add("hidden");
+document.getElementById("builderScripts").classList.add("hidden");
+document.getElementById("adminPanel").classList.add("hidden");
+document.querySelectorAll("nav li").forEach(li=>li.classList.remove("active"));
+if(menu==="call"){document.getElementById("callScripts").classList.remove("hidden"); document.getElementById("menuCall").classList.add("active");}
+if(menu==="counter"){document.getElementById("counterScripts").classList.remove("hidden"); document.getElementById("menuCounter").classList.add("active");}
+if(menu==="builder"){document.getElementById("builderScripts").classList.remove("hidden"); document.getElementById("menuBuilder").classList.add("active");}
+if(menu==="admin"){document.getElementById("adminPanel").classList.remove("hidden"); document.getElementById("menuAdmin").classList.add("active");}
+}
+
+// PDF / Copy
+function exportCallPDF(){let doc=new jsPDF(); let y=10; callScripts.forEach(c=>{doc.text(10,y,c.title); y+=6; doc.text(10,y,"OBJECTIVE: "+c.structure.OBJECTIVE); y+=6; doc.text(10,y,"OPENER: "+c.structure.OPENER); y+=6; doc.text(10,y,"PAIN: "+c.structure.PAIN); y+=6; doc.text(10,y,"URGENCY: "+c.structure.URGENCY); y+=6; doc.text(10,y,"Objection: "+c.objections.map(o=>o.question+" → "+o.answer).join(", ")); y+=10;}); doc.save("CallScripts.pdf"); }
+function copyCallText(){navigator.clipboard.writeText(callScripts.map(c=>c.title+"\nOBJECTIVE:"+c.structure.OBJECTIVE+"\nOPENER:"+c.structure.OPENER+"\nPAIN:"+c.structure.PAIN+"\nURGENCY:"+c.structure.URGENCY).join("\n\n")); alert("Copied!");}
+function exportCounterPDF(){let doc=new jsPDF(); let y=10; counterScripts.forEach(c=>{doc.text(10,y,c.title); y+=6; doc.text(10,y,"Step1: "+c.step1); y+=6; doc.text(10,y,"Step2: "+c.step2); y+=10;}); doc.save("CounterScripts.pdf");}
+function copyCounterText(){navigator.clipboard.writeText(counterScripts.map(c=>c.title+"\nStep1:"+c.step1+"\nStep2:"+c.step2).join("\n\n")); alert("Copied!");}
+function exportBuilderPDF(){let doc=new jsPDF(); let y=10; builderNodes.forEach(n=>{doc.text(10,y,n.nodeId+": "+n.text); y+=6; n.options.forEach(o=>{doc.text(10,y,o.text+" → "+o.nextNodeId); y+=5;}); y+=5;}); doc.save("Builder.pdf");}
+function copyBuilderText(){navigator.clipboard.writeText(builderNodes.map(n=>n.nodeId+": "+n.text+"\n"+n.options.map(o=>o.text+" → "+o.nextNodeId).join("\n")).join("\n\n")); alert("Copied!");}
+
+// Initial render
+renderCallScripts(); renderCounterScripts(); renderBuilder();
+</script>
+
+</body>
+</html>
